@@ -1,2 +1,2 @@
-# hello-python
-Simple Hello Python App
+# Hello Python App - Kubernetes - Jenkins
+Basic Python App to Test Containers deploy in Kubernetes with Jenkins
