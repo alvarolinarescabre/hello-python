@@ -1,5 +1,13 @@
-kind: PersistentVolumeClaim
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins
+  labels:
+    name: jenkins
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
 metadata:
   name: jenkins-ca-codigofacilito-local
   namespace: jenkins
