@@ -33,11 +33,17 @@ controller:
   imagePullSecretName:
   # Optionally configure lifetime for controller-container
   lifecycle:
-  #  postStart:
-  #    exec:
-  #      command:
-  #      - "uname"
-  #      - "-a"
+    postStart:   
+      exec:                                                                                                            
+        command:                                                                                                       
+        - /bin/sh                                                                                                      
+        - -c                                                                                                           
+        - |                                                                                                            
+          openssl s_client -showcerts -servername git.codigofacilito.local -connect git.codigofacilito.local:443  < /dev/null | openssl x509 -outform PEM > /etc/ssl/certs/rootCA-key.pem;
+          openssl s_client -showcerts -servername git.codigofacilito.local -connect git.codigofacilito.local:443  < /dev/null | openssl x509 > /etc/ssl/certs/rootCA-key.crt;
+          cat /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/rootCA-key.crt > /etc/ssl/certs/ca-certificates.crt;
+          ${JAVA_HOME}/bin/keytool -import -trustcacerts -alias gitea-ca-certs -keystore ${JAVA_HOME}/lib/security/cacerts -file /etc/ssl/certs/ca-certificates.crt -noprompt -storepass changeit;
+          update-ca-certificates
   disableRememberMe: false
   numExecutors: 0
   # configures the executor mode of the Jenkins node. Possible values are: NORMAL or EXCLUSIVE
@@ -264,13 +270,15 @@ controller:
     - workflow-aggregator
     - git
     - git-client
+    - gitea
+    - gitea-checks
+    - gitea-pat-kubernetes-credentials
     - configuration-as-code
     - configuration-as-code-groovy
     - ansicolor
     - workflow-basic-steps
     - pipeline-stage-step
     - pipeline-stage-view
-    - pollscm
 
   # Set to false to download the minimum required version of all dependencies.
   installLatestPlugins: true
@@ -356,44 +364,7 @@ controller:
     configUrls: []
     # - https://acme.org/jenkins.yaml
     # Remote URL:s for configuration files.
-    configScripts: 
-    cloud: |
-      jenkins:
-        clouds:
-          - kubernetes:
-              containerCap: 10
-              containerCapStr: "10"
-              jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
-              jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
-              name: "kubernetes"
-              namespace: "jenkins"
-              podLabels:
-              - key: "jenkins/jenkins-agent"
-                value: "true"
-              serverUrl: "https://kubernetes.default"
-              templates:
-              - containers:
-                - args: "^${computer.jnlpmac} ^${computer.name}"
-                  envVars:
-                  - envVar:
-                      key: "JENKINS_URL"
-                      value: "http://jenkins.jenkins.svc.cluster.local:8080/"
-                  image: "jenkins/inbound-agent:3206.vb_15dcf73f6a_9-3"
-                  name: "jnlp"
-                  resourceLimitCpu: "512m"
-                  resourceLimitMemory: "512Mi"
-                  resourceRequestCpu: "512m"
-                  resourceRequestMemory: "512Mi"
-                  workingDir: "/home/jenkins/agent"
-                label: "jenkins-agent"
-                name: "default"
-                namespace: "jenkins"
-                nodeUsageMode: "NORMAL"
-                podRetention: "never"
-                serviceAccount: "default"
-                slaveConnectTimeout: 100
-                slaveConnectTimeoutStr: "100"
-                yamlMergeStrategy: "override"
+    configScripts: {}
     #  welcome-message: |
     #    jenkins:
     #      systemMessage: Welcome to our CI\CD server.  This Jenkins is configured and managed 'as code'.
@@ -531,7 +502,7 @@ controller:
     # Set this path to jenkinsUriPrefix above or use annotations to rewrite path
     # path: "/jenkins"
     # configures the hostname e.g. jenkins.example.com
-    hostName: jenkins.codigofacilitio.local
+    hostName: jenkins.codigofacilito.local
     tls:
     # - secretName: jenkins.cluster.local
     #   hosts:
@@ -722,8 +693,8 @@ agent:
       memory: "512Mi"
       # ephemeralStorage:
     limits:
-      cpu: "512m"
-      memory: "512Mi"
+      cpu: "1"
+      memory: "1Gi"
       # ephemeralStorage:
   livenessProbe: {}
 #    execArgs: "cat /tmp/healthy"
@@ -745,7 +716,7 @@ agent:
   # Allowed types are: ConfigMap, EmptyDir, EphemeralVolume, HostPath, Nfs, PVC, Secret
   # Configure the attributes as they appear in the corresponding Java class for that type
   # https://github.com/jenkinsci/kubernetes-plugin/tree/master/src/main/java/org/csanchez/jenkins/plugins/kubernetes/volumes
-  volumes: []
+  volumes:
   # - type: ConfigMap
   #   configMapName: myconfigmap
   #   mountPath: /var/myapp/myconfigmap
@@ -805,9 +776,7 @@ agent:
   # readOnly: false
   #
   # Pod-wide environment, these vars are visible to any container in the agent pod
-  envVars: []
-  # - name: PATH
-  #   value: /usr/local/bin
+  envVars:
   # Mount a secret as environment variable
   secretEnvVars: []
   # - key: PATH
@@ -819,12 +788,12 @@ agent:
   # jenkins-agent: v1
 
   # Executed command when side container gets started
-  command:
+  command: "openssl s_client -showcerts -servername git.codigofacilito.local -connect git.codigofacilito.local:443  < /dev/null | openssl x509 > /usr/local/share/ca-certificates/rootCA-key.crt && update-ca-certificates && cat"
   args: "${computer.jnlpmac} ${computer.name}"
   # Side container name
   sideContainerName: "jnlp"
   # Doesn't allocate pseudo TTY by default
-  TTYEnabled: false
+  TTYEnabled: true
   # Max number of spawned agent
   containerCap: 10
   # Pod name
@@ -836,20 +805,7 @@ agent:
   # https://github.com/jenkinsci/kubernetes-plugin#using-yaml-to-define-pod-templates
   # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   yamlTemplate: ""
-  # yamlTemplate: |-
-  #   apiVersion: v1
-  #   kind: Pod
-  #   spec:
-  #     tolerations:
-  #     - key: "key"
-  #       operator: "Equal"
-  #       value: "value"
-  # Defines how the raw yaml field gets merged with yaml definitions from inherited pod templates: merge or override
   yamlMergeStrategy: "override"
-  # Timeout in seconds for an agent to be online
-  connectTimeout: 100
-  # Annotations to apply to the pod.
-  annotations: {}
 
   # Add additional containers to the agents.
   # Containers specified here are added to all agents. Set key empty to remove container from additional agents.
@@ -948,15 +904,15 @@ persistence:
   # Existing data source to clone PVC from
   # ref: https://kubernetes.io/docs/concepts/storage/volume-pvc-datasource/
   dataSource:
-  #   name: PVC-NAME
-  #   kind: PersistentVolumeClaim
+     name: jenkins-ca-codigofacilito-local
+     kind: PersistentVolumeClaim
   volumes:
-  #  - name: nothing
-  #    emptyDir: {}
+    - name: nothing
+      emptyDir: {}
   mounts:
-  #  - mountPath: /var/nothing
-  #    name: nothing
-  #    readOnly: true
+    - mountPath: /etc/ssl/certs/
+      name: nothing
+      readOnly: false
 
 networkPolicy:
   # Enable creation of NetworkPolicy resources.

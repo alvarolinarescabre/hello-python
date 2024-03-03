@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
       - name: hello-python
-        image: ghcr.io/alvarolinarescabre/hello-python:CHANGE_VERSION
+        image: git.codigofacilito.local/git_admin/hello-python:CHANGE_VERSION
         resources:
           requests:
             cpu: 100m
