@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-       return "(Version 01) - Use like this: https://hello.codigofacilito.local/hello/Chamo"
+       return "(v1.0.0) - Use like this: https://hello.codigofacilito.local/hello/Chamo"
 
 
 @app.route('/hello/<name>')

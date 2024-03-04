@@ -3,8 +3,6 @@ kind: Pod
 metadata:
   name: skaffold
 spec:
-  serviceAccountName: jenkins
-  automountServiceAccountToken: true
   containers:
     - name: skaffold
       image: gcr.io/k8s-skaffold/skaffold:v2.10.1
